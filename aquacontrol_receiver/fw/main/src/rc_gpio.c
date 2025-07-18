@@ -7,8 +7,9 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "utils.h"
+#include "supabase.h"
 
-static const char *TAG = "RC_GPIO";
+static const char *TAG_GPIO = "RC_GPIO";
 static QueueHandle_t gpio_evt_queue = NULL;
 static int relay_state = 0;  // 0 = OFF, 1 = ON
 extern int64_t last_manual_override_time_us;  // Declare to access from utils.c
@@ -27,14 +28,15 @@ static void gpio_event_task(void* arg) {
             vTaskDelay(pdMS_TO_TICKS(50));
 
             int level = gpio_get_level(io_num);
-            ESP_LOGI(TAG, "GPIO[%" PRIu32 "] interrupt, level: %d", io_num, level);
+            ESP_LOGI(TAG_GPIO, "GPIO[%" PRIu32 "] interrupt, level: %d", io_num, level);
 
             // Trigger only on falling edge (switch press if using pull-up)
             if (level == 0 && io_num == SWITCH_GPIO) {
                 relay_state = !relay_state;
                 gpio_set_level(RELAY_GPIO, relay_state);
-                ESP_LOGI(TAG, "Relay toggled to: %d", relay_state);
+                ESP_LOGI(TAG_GPIO, "Relay toggled to: %d", relay_state);
                 last_manual_override_time_us = esp_timer_get_time();  // Update override timestamp
+                update_control_state_from_esp32(relay_state);
             }
         }
     }
@@ -73,5 +75,5 @@ void setup_gpios(void) {
     gpio_install_isr_service(0);
     gpio_isr_handler_add(SWITCH_GPIO, gpio_isr_handler, (void*) SWITCH_GPIO);
 
-    ESP_LOGI(TAG, "GPIOs initialized: Relay = GPIO%d, Switch = GPIO%d", RELAY_GPIO, SWITCH_GPIO);
+    ESP_LOGI(TAG_GPIO, "GPIOs initialized: Relay = GPIO%d, Switch = GPIO%d", RELAY_GPIO, SWITCH_GPIO);
 }
