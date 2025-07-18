@@ -1,0 +1,22 @@
+[1/9] Performing build step for 'bootloader'
+[1/1] cd /home/zenithtek/aquacontrol_fw/aquacontrol_sender/fw/build/bootloader/esp-idf/esptool_py && /home/zenithtek/.espressif/python_env/idf5.4_py3.12_env/bin/python /home/zenithtek/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x1000 /home/zenithtek/aquacontrol_fw/aquacontrol_sender/fw/build/bootloader/bootloader.bin
+Bootloader binary size 0x6580 bytes. 0xa80 bytes (9%) free.
+[2/9] No install step for 'bootloader'
+[3/9] Completed 'bootloader'
+[4/9] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj
+In file included from /home/zenithtek/aquacontrol_fw/aquacontrol_sender/fw/main/main.h:11,
+                 from /home/zenithtek/aquacontrol_fw/aquacontrol_sender/fw/main/main.c:1:
+/home/zenithtek/aquacontrol_fw/aquacontrol_sender/fw/main/utils.h:26:37: warning: 'sleep_enter_time' defined but not used [-Wunused-variable]
+   26 | static RTC_DATA_ATTR struct timeval sleep_enter_time;
+      |                                     ^~~~~~~~~~~~~~~~
+[5/9] Linking C static library esp-idf/main/libmain.a
+[6/9] Generating ld/sections.ld
+[7/9] Linking CXX executable lora_send.elf
+[8/9] Generating binary image from built executable
+esptool.py v4.8.1
+Creating esp32 image...
+Merged 2 ELF sections
+Successfully created esp32 image.
+Generated /home/zenithtek/aquacontrol_fw/aquacontrol_sender/fw/build/lora_send.bin
+[9/9] cd /home/zenithtek/aquacontrol_fw/aquacontrol_sender/fw/build/esp-idf/esptool_py && /home/zenithtek/.espressif/python_env/idf5.4_py3.12_env/bin/python /home/zenithtek/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /home/zenithtek/aquacontrol_fw/aquacontrol_sender/fw/build/partition_table/partition-table.bin /home/zenithtek/aquacontrol_fw/aquacontrol_sender/fw/build/lora_send.bin
+lora_send.bin binary size 0x38eb0 bytes. Smallest app partition is 0x100000 bytes. 0xc7150 bytes (78%) free.

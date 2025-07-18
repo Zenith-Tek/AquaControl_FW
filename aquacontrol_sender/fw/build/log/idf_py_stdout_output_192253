@@ -1,0 +1,223 @@
+ets Jun  8 2016 00:22:57
+
+rst:0x1 (POWERON_RESET),boot:0x12 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:6276
+load:0x40078000,len:15748
+load:0x40080400,len:4
+ho 8 tail 4 room 4
+load:0x40080404,len:3860
+entry 0x4008063c
+[0;32mI (30) boot: ESP-IDF v5.4.1-dirty 2nd stage bootloader[0m
+[0;32mI (30) boot: compile time Jul 17 2025 13:33:42[0m
+[0;32mI (30) boot: Multicore bootloader[0m
+[0;32mI (32) boot: chip revision: v1.0[0m
+[0;32mI (35) boot.esp32: SPI Speed      : 40MHz[0m
+[0;32mI (38) boot.esp32: SPI Mode       : DIO[0m
+[0;32mI (42) boot.esp32: SPI Flash Size : 2MB[0m
+[0;32mI (46) boot: Enabling RNG early entropy source...[0m
+[0;32mI (50) boot: Partition Table:[0m
+[0;32mI (53) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (59) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (66) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (72) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (79) boot: End of partition table[0m
+[0;32mI (82) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=0c2ech ( 49900) map[0m
+[0;32mI (106) esp_image: segment 1: paddr=0001c314 vaddr=3ff801ec size=0001ch (    28) load[0m
+[0;32mI (107) esp_image: segment 2: paddr=0001c338 vaddr=3ffb0000 size=02448h (  9288) load[0m
+[0;32mI (114) esp_image: segment 3: paddr=0001e788 vaddr=40080000 size=01890h (  6288) load[0m
+[0;32mI (120) esp_image: segment 4: paddr=00020020 vaddr=400d0020 size=1ade0h (110048) map[0m
+[0;32mI (163) esp_image: segment 5: paddr=0003ae08 vaddr=40081890 size=0de08h ( 56840) load[0m
+[0;32mI (185) esp_image: segment 6: paddr=00048c18 vaddr=400c0000 size=001ech (   492) load[0m
+[0;32mI (186) esp_image: segment 7: paddr=00048e0c vaddr=50000000 size=00078h (   120) load[0m
+[0;32mI (197) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (197) boot: Disabling RNG early entropy source...[0m
+[0;32mI (211) cpu_start: Multicore app[0m
+[0;32mI (219) cpu_start: Pro cpu start user code[0m
+[0;32mI (219) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (219) app_init: Application information:[0m
+[0;32mI (219) app_init: Project name:     lora_send[0m
+[0;32mI (223) app_init: App version:      1.0.0[0m
+[0;32mI (227) app_init: Compile time:     Jul 17 2025 13:33:38[0m
+[0;32mI (232) app_init: ELF file SHA256:  2c4e75534...[0m
+[0;32mI (237) app_init: ESP-IDF:          v5.4.1-dirty[0m
+[0;32mI (241) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (245) efuse_init: Max chip rev:     v3.99 [0m
+[0;32mI (249) efuse_init: Chip rev:         v1.0[0m
+[0;32mI (253) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (259) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM[0m
+[0;32mI (264) heap_init: At 3FFB2D90 len 0002D270 (180 KiB): DRAM[0m
+[0;32mI (269) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+[0;32mI (275) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (280) heap_init: At 4008F698 len 00010968 (66 KiB): IRAM[0m
+[0;32mI (287) spi_flash: detected chip: generic[0m
+[0;32mI (289) spi_flash: flash io: dio[0m
+[0;33mW (292) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (305) main_task: Started on CPU0[0m
+[0;32mI (315) main_task: Calling app_main()[0m
+[0;32mI (315) APP: ========== Chip Information ===========================================[0m
+[0;32mI (315) APP: Chip model: ESP32[0m
+[0;32mI (315) APP: CPU cores: 2[0m
+[0;32mI (315) APP: Silicon revision: 100[0m
+[0;32mI (325) APP: Flash size: 2 MB[0m
+[0;32mI (325) APP: ========== Program Version ============================================[0m
+[0;32mI (335) APP: [APP] Name: lora_send[0m
+[0;32mI (335) APP: [APP] Version: v - [0m
+[0;32mI (335) APP: [APP] Compile Date: Jul 17 2025[0m
+[0;32mI (345) APP: [APP] Compile Time: 13:33:38[0m
+[0;32mI (345) APP: ========== Heap Information ===========================================[0m
+[0;32mI (355) APP: Total free heap: 304724 bytes[0m
+[0;32mI (355) APP: Minimum free heap since boot: 304724 bytes[0m
+[0;32mI (365) APP: Internal RAM free: 371772 bytes[0m
+[0;32mI (365) APP: ========== Stack Information ==========================================[0m
+[0;32mI (375) APP: Current task stack high water mark: 2064 bytes[0m
+[0;32mI (375) APP: ========== Flash Partition Information ================================[0m
+[0;32mI (385) APP: App partition size: 1048576 bytes[0m
+[0;32mI (395) APP: =======================================================================[0m
+[0;32mI (395) gpio: GPIO[5]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0 [0m
+[0;32mI (405) gpio: GPIO[15]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0 [0m
+[0;32mI (425) main: Frequency is 433MHz[0m
+[0;32mI (425) main: coding_rate=1[0m
+[0;32mI (425) main: bandwidth=7[0m
+[0;32mI (425) main: spreading_factor=7[0m
+[0;32mI (425) gpio: GPIO[19]| InputEn: 0| OutputEn: 1| OpenDrain: 0| Pullup: 0| Pulldown: 0| Intr:0 [0m
+[0;32mI (435) gpio: GPIO[18]| InputEn: 1| OutputEn: 0| OpenDrain: 0| Pullup: 0| Pulldown: 0| Intr:0 [0m
+[0;32mI (445) Ultrasonic: Measured distance: 3.00 cm[0m
+[0;32mI (445) TX: Start[0m
+[0;32mI (445) LORA_SENDER: Elapsed time: 0 seconds[0m
+[0;32mI (455) main_task: Returned from app_main()[0m
+[0;32mI (535) TX: 36 byte packet sent: Ultrasonic data: 3.00 CM, @ Tick: 15[0m
+[0;32mI (1495) Ultrasonic: Measured distance: 827.85 cm[0m
+[0;32mI (2545) Ultrasonic: Measured distance: 827.95 cm[0m
+[0;32mI (3595) Ultrasonic: Measured distance: 827.95 cm[0m
+[0;32mI (4645) Ultrasonic: Measured distance: 827.90 cm[0m
+[0;32mI (5535) LORA_SENDER: Elapsed time: 5 seconds[0m
+[0;32mI (5635) TX: 39 byte packet sent: Ultrasonic data: 827.90 CM, @ Tick: 523[0m
+[0;32mI (5695) Ultrasonic: Measured distance: 827.80 cm[0m
+[0;32mI (6695) Ultrasonic: Measured distance: 20.27 cm[0m
+[0;32mI (7745) Ultrasonic: Measured distance: 827.78 cm[0m
+[0;32mI (8745) Ultrasonic: Measured distance: 19.96 cm[0m
+[0;32mI (9745) Ultrasonic: Measured distance: 21.27 cm[0m
+[0;32mI (10635) LORA_SENDER: Elapsed time: 10 seconds[0m
+[0;32mI (10735) TX: 39 byte packet sent: Ultrasonic data: 21.27 CM, @ Tick: 1033[0m
+[0;32mI (10745) Ultrasonic: Measured distance: 20.94 cm[0m
+[0;32mI (11745) Ultrasonic: Measured distance: 20.94 cm[0m
+[0;32mI (12745) Ultrasonic: Measured distance: 19.96 cm[0m
+[0;32mI (13745) Ultrasonic: Measured distance: 19.95 cm[0m
+[0;32mI (14745) Ultrasonic: Measured distance: 20.94 cm[0m
+[0;32mI (15735) LORA_SENDER: Elapsed time: 15 seconds[0m
+[0;32mI (15745) Ultrasonic: Measured distance: 20.94 cm[0m
+[0;32mI (15835) TX: 39 byte packet sent: Ultrasonic data: 20.94 CM, @ Tick: 1543[0m
+[0;32mI (16745) Ultrasonic: Measured distance: 20.29 cm[0m
+[0;32mI (17795) Ultrasonic: Measured distance: 827.85 cm[0m
+[0;32mI (18795) Ultrasonic: Measured distance: 20.29 cm[0m
+[0;32mI (19795) Ultrasonic: Measured distance: 20.94 cm[0m
+[0;32mI (20795) Ultrasonic: Measured distance: 19.95 cm[0m
+[0;32mI (20835) LORA_SENDER: Elapsed time: 20 seconds[0m
+[0;32mI (20835) LORA_SENDER: 20 seconds elapsed, entering deep sleep for 40 sec...[0m
+[0;32mI (21835) Ultrasonic: Enabling timer wakeup, 40s[0m
+
+[0;32mI (21835) Ultrasonic: Entering deep sleep[0m
+ets Jun  8 2016 00:22:57
+
+rst:0x5 (DEEPSLEEP_RESET),boot:0x12 (SPI_FAST_FLASH_BOOT)
+ets Jun  8 2016 00:22:57
+
+rst:0x7 (TG0WDT_SYS_RESET),boot:0x12 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:6276
+load:0x40078000,len:15748
+load:0x40080400,len:4
+ho 8 tail 4 room 4
+load:0x40080404,len:3860
+entry 0x4008063c
+[0;32mI (31) boot: ESP-IDF v5.4.1-dirty 2nd stage bootloader[0m
+[0;32mI (31) boot: compile time Jul 17 2025 13:33:42[0m
+[0;32mI (31) boot: Multicore bootloader[0m
+[0;32mI (33) boot: chip revision: v1.0[0m
+[0;32mI (36) boot.esp32: SPI Speed      : 40MHz[0m
+[0;32mI (40) boot.esp32: SPI Mode       : DIO[0m
+[0;32mI (43) boot.esp32: SPI Flash Size : 2MB[0m
+[0;33mW (47) boot.esp32: PRO CPU has been reset by WDT[0m
+[0;33mW (51) boot.esp32: WDT rst info: PRO CPU PC=0x9d48a813[0m
+[0;33mW (56) boot.esp32: WDT rst info: APP CPU PC=0x81eb2442[0m
+[0;32mI (61) boot: Enabling RNG early entropy source...[0m
+[0;32mI (65) boot: Partition Table:[0m
+[0;32mI (68) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (74) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (81) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (87) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (94) boot: End of partition table[0m
+[0;32mI (97) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=0c2ech ( 49900) map[0m
+[0;32mI (122) esp_image: segment 1: paddr=0001c314 vaddr=3ff801ec size=0001ch (    28) load[0m
+[0;32mI (122) esp_image: segment 2: paddr=0001c338 vaddr=3ffb0000 size=02448h (  9288) load[0m
+[0;32mI (129) esp_image: segment 3: paddr=0001e788 vaddr=40080000 size=01890h (  6288) load[0m
+[0;32mI (136) esp_image: segment 4: paddr=00020020 vaddr=400d0020 size=1ade0h (110048) map[0m
+[0;32mI (178) esp_image: segment 5: paddr=0003ae08 vaddr=40081890 size=0de08h ( 56840) load[0m
+[0;32mI (201) esp_image: segment 6: paddr=00048c18 vaddr=400c0000 size=001ech (   492) load[0m
+[0;32mI (201) esp_image: segment 7: paddr=00048e0c vaddr=50000000 size=00078h (   120) load[0m
+[0;32mI (212) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (212) boot: Disabling RNG early entropy source...[0m
+[0;32mI (226) cpu_start: Multicore app[0m
+[0;32mI (234) cpu_start: Pro cpu start user code[0m
+[0;32mI (235) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (235) app_init: Application information:[0m
+[0;32mI (235) app_init: Project name:     lora_send[0m
+[0;32mI (239) app_init: App version:      1.0.0[0m
+[0;32mI (242) app_init: Compile time:     Jul 17 2025 13:33:38[0m
+[0;32mI (247) app_init: ELF file SHA256:  2c4e75534...[0m
+[0;32mI (252) app_init: ESP-IDF:          v5.4.1-dirty[0m
+[0;32mI (256) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (260) efuse_init: Max chip rev:     v3.99 [0m
+[0;32mI (264) efuse_init: Chip rev:         v1.0[0m
+[0;32mI (268) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (274) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM[0m
+[0;32mI (279) heap_init: At 3FFB2D90 len 0002D270 (180 KiB): DRAM[0m
+[0;32mI (284) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+[0;32mI (290) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (295) heap_init: At 4008F698 len 00010968 (66 KiB): IRAM[0m
+[0;32mI (302) spi_flash: detected chip: generic[0m
+[0;32mI (304) spi_flash: flash io: dio[0m
+[0;33mW (307) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (320) main_task: Started on CPU0[0m
+[0;32mI (330) main_task: Calling app_main()[0m
+[0;32mI (330) APP: ========== Chip Information ===========================================[0m
+[0;32mI (330) APP: Chip model: ESP32[0m
+[0;32mI (330) APP: CPU cores: 2[0m
+[0;32mI (330) APP: Silicon revision: 100[0m
+[0;32mI (340) APP: Flash size: 2 MB[0m
+[0;32mI (340) APP: ========== Program Version ============================================[0m
+[0;32mI (350) APP: [APP] Name: lora_send[0m
+[0;32mI (350) APP: [APP] Version: v - [0m
+[0;32mI (350) APP: [APP] Compile Date: Jul 17 2025[0m
+[0;32mI (360) APP: [APP] Compile Time: 13:33:38[0m
+[0;32mI (360) APP: ========== Heap Information ===========================================[0m
+[0;32mI (370) APP: Total free heap: 304724 bytes[0m
+[0;32mI (370) APP: Minimum free heap since boot: 304724 bytes[0m
+[0;32mI (380) APP: Internal RAM free: 371772 bytes[0m
+[0;32mI (380) APP: ========== Stack Information ==========================================[0m
+[0;32mI (390) APP: Current task stack high water mark: 2064 bytes[0m
+[0;32mI (390) APP: ========== Flash Partition Information ================================[0m
+[0;32mI (400) APP: App partition size: 1048576 bytes[0m
+[0;32mI (410) APP: =======================================================================[0m
+[0;32mI (410) gpio: GPIO[5]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0 [0m
+[0;32mI (420) gpio: GPIO[15]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0 [0m
+[0;32mI (440) main: Frequency is 433MHz[0m
+[0;32mI (440) main: coding_rate=1[0m
+[0;32mI (440) main: bandwidth=7[0m
+[0;32mI (440) main: spreading_factor=7[0m
+[0;32mI (440) gpio: GPIO[19]| InputEn: 0| OutputEn: 1| OpenDrain: 0| Pullup: 0| Pulldown: 0| Intr:0 [0m
+[0;32mI (450) gpio: GPIO[18]| InputEn: 1| OutputEn: 0| OpenDrain: 0| Pullup: 0| Pulldown: 0| Intr:0 [0m
+[0;32mI (490) Ultrasonic: Measured distance: 505.96 cm[0m
+[0;32mI (490) TX: Start[0m
+[0;32mI (490) LORA_SENDER: Elapsed time: 0 seconds[0m
+[0;32mI (490) main_task: Returned from app_main()[0m
+[0;32mI (590) TX: 38 byte packet sent: Ultrasonic data: 505.96 CM, @ Tick: 17[0m
+[0;32mI (1540) Ultrasonic: Measured distance: 827.83 cm[0m
+[0;32mI (2590) Ultrasonic: Measured distance: 827.88 cm[0m
+[0;32mI (3640) Ultrasonic: Measured distance: 827.85 cm[0m
+[0;32mI (4690) Ultrasonic: Measured distance: 827.92 cm[0m
