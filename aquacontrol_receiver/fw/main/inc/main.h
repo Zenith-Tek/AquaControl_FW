@@ -9,7 +9,6 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 
-#include "lora.h"
 #include "utils.h"
 #include <esp_log.h>
 #include "rc_gpio.h"
@@ -52,15 +51,13 @@
 #include "freertos/event_groups.h"
 
 
-#include "wifi_provisioning/manager.h"
-#include "wifi_provisioning/scheme_softap.h"
+// #include "wifi_provisioning/manager.h"
+// #include "wifi_provisioning/scheme_softap.h"
 
-#define WIFI_CONNECTED_EVENT_TIMEOUT (3000/portTICK_PERIOD_MS)
+// #define WIFI_CONNECTED_EVENT_TIMEOUT (3000/portTICK_PERIOD_MS)
 
 void task_rx(void *pvParameters);
 void print_system_memory_status();
-void wifi_init_sta(void);
-void wifi_init(void);
 void initialise_lora();
 
 #endif
