@@ -24,29 +24,33 @@ void process_lora_data(float empty_space)
     ESP_LOGI(TAG, "Empty Space: %.2f cm", empty_space);
     ESP_LOGI(TAG, "Water Level: %.2f cm", water_level);
     ESP_LOGI(TAG, "Water Level Percentage: %.2f", water_level_percentage);
-
+    ESP_LOGI(TAG, "Tank Size : %d", tank_size_cm);
     water_level_percent_int = (int) water_level_percentage;
     int64_t current_time_us = esp_timer_get_time();
-
-    // Check if 5 minutes (300 seconds) have passed since last manual override
-    // if ((current_time_us - last_manual_override_time_us) < 120000000) {
-    //     ESP_LOGI(TAG, "Bypassing auto-control (manual override active)");
-    //     return;
-    // }
-    if(auto_control)
+    if(water_level_percent_int >= 0)
     {
-        if(water_level_percent_int>=auto_off_level && auto_off)
+        send_data_to_supabase();
+        
+        // Check if 5 minutes (300 seconds) have passed since last manual override
+        // if ((current_time_us - last_manual_override_time_us) < 120000000) {
+        //     ESP_LOGI(TAG, "Bypassing auto-control (manual override active)");
+        //     return;
+        // }
+        if(auto_control)
         {
-            relay_off();
+            if(water_level_percent_int>=auto_off_level && auto_off)
+            {
+                relay_off();
+            }
+            else if (water_level_percent_int <= auto_on_level && auto_on)
+            {       
+                relay_on();
+            }
         }
-        else if (water_level_percent_int <= auto_on_level && auto_on)
-        {       
-            relay_on();
+        else
+        {
+            ESP_LOGW(TAG, "AUTO CONTROL IS OFF");
         }
-    }
-    else
-    {
-        ESP_LOGW(TAG, "AUTO CONTROL IS OFF");
     }
 }
 

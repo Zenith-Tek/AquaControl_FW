@@ -69,7 +69,7 @@ void setup_gpios(void) {
     gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
 
     // Start task to process GPIO events
-    xTaskCreate(gpio_event_task, "gpio_event_task", 2048, NULL, 10, NULL);
+    xTaskCreate(gpio_event_task, "gpio_event_task", 8192, NULL, 10, NULL);
 
     // Install ISR service and attach handler
     gpio_install_isr_service(0);

@@ -1,7 +1,9 @@
 #include <provisioning.h>
 #include "wifi_provisioning/scheme_softap.h"
 #include "wifi_provisioning/manager.h"
-#include "main.h"  // for led_mode access
+#include "main.h"  
+#include "wifi.h"
+
 // LED status handle from main
 // extern led_status_t led_mode;
 // extern char *TAG;

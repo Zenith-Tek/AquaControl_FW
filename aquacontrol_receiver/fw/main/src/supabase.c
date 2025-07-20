@@ -189,15 +189,12 @@ void read_control_state_from_supabase()
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
 
-    if(prev_motor_state == motor_state)
-    {
-        continue;
-    }
     if(prev_motor_state != motor_state)
     {
         prev_motor_state = motor_state;
         control_relay(prev_motor_state);
     }
+
 }
 
 
