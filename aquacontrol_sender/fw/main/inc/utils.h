@@ -21,11 +21,24 @@
 #include "driver/gpio.h"
 #include "esp_timer.h"
 
+#define TRIG_GPIO GPIO_NUM_21
+#define ECHO_GPIO GPIO_NUM_20
+#define LORA_PWR_GPIO GPIO_NUM_9
+#define JSN_PWR_GPIO GPIO_NUM_10
+#define BAT_IN_GPIO GPIO_NUM_1
+#define SOL_IN_GPIO GPIO_NUM_0
+
 extern float ultrasonic_data;
-// // sleep_enter_time stored in RTC memory
-static RTC_DATA_ATTR struct timeval sleep_enter_time;
+extern struct timeval sleep_enter_time;
 
 void ultrasonic_init(void);
-void deepsleep(void);
+void deepsleep(uint32_t sleep_time_sec);
+
+float read_filtered_ultrasonic_distance(void);
+uint8_t read_battery_percentage(void);
+uint8_t read_solar_voltage(void);
+void power_lora_only_on(void);
+void power_peripherals_on(void);
+void power_peripherals_off(void);
 
 #endif
