@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 void wake_stub_example(void);
-void deepsleep(void);
+void deepsleep(uint32_t sleep_time_sec);
 
 #ifdef __cplusplus
 }
