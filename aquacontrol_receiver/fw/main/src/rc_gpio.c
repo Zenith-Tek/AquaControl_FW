@@ -35,6 +35,12 @@ static void gpio_event_task(void* arg) {
                 relay_state = !relay_state;
                 gpio_set_level(RELAY_GPIO, relay_state);
                 ESP_LOGI(TAG_GPIO, "Relay toggled to: %d", relay_state);
+                
+                extern int motor_state;
+                extern int prev_motor_state;
+                motor_state = relay_state;
+                prev_motor_state = relay_state;
+
                 last_manual_override_time_us = esp_timer_get_time();  // Update override timestamp
                 update_control_state_from_esp32(relay_state);
             }

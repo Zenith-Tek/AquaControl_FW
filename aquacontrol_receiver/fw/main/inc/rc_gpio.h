@@ -5,7 +5,7 @@
 #include "esp_timer.h"  // for esp_timer_get_time()
 // GPIO numbers
 #define RELAY_GPIO 4
-#define SWITCH_GPIO 27
+#define SWITCH_GPIO 16
 
 // Function to setup GPIOs (Relay output + Switch input with interrupt)
 void setup_gpios(void);

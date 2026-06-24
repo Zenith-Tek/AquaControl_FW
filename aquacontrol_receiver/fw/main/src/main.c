@@ -2,6 +2,9 @@
 #include "wifi.h"
 #include "supabase.h"
 #include "zt_lora.h"
+#include "ota.h"
+#include "ota_selftest.h"
+#include "crash_report.h"
 
 #define TAG_1 "Provisoning"
 #define TAG_INFO "Provisoning"
@@ -10,12 +13,47 @@ struct timeval tv;
 extern float ultrasonic_data;
 extern uint32_t tick;
 
+const char *G_REBOOT_REASON_STR = NULL;
+
 void app_main()
 {
+    // Determine reboot reason
+    esp_reset_reason_t reason = esp_reset_reason();
+    switch (reason) {
+        case ESP_RST_POWERON: G_REBOOT_REASON_STR = "PowerOn"; break;
+        case ESP_RST_EXT:     G_REBOOT_REASON_STR = "ExternalReset"; break;
+        case ESP_RST_SW:      G_REBOOT_REASON_STR = "SoftwareReset"; break;
+        case ESP_RST_PANIC:   G_REBOOT_REASON_STR = "Panic"; break;
+        case ESP_RST_INT_WDT: G_REBOOT_REASON_STR = "InterruptWatchdog"; break;
+        case ESP_RST_TASK_WDT:G_REBOOT_REASON_STR = "TaskWatchdog"; break;
+        case ESP_RST_WDT:     G_REBOOT_REASON_STR = "OtherWatchdog"; break;
+        case ESP_RST_DEEPSLEEP:G_REBOOT_REASON_STR = "DeepSleep"; break;
+        case ESP_RST_BROWNOUT:G_REBOOT_REASON_STR = "Brownout"; break;
+        case ESP_RST_SDIO:    G_REBOOT_REASON_STR = "SDIO"; break;
+        default:              G_REBOOT_REASON_STR = "Unknown"; break;
+    }
+
+    // Initialize OTA rollback self-test
+    ota_selftest_init();
+
 	print_system_memory_status();
     setup_gpios();
+    
+    // Peripherals successfully initialized
+    ota_selftest_set_peripherals_ok(true);
+
+    load_bindings_from_nvs();
     connect_wifi();
-    read_control_state_from_supabase();
+
+    // Network checks: run self-test network checks
+    ota_selftest_run_network_checks();
+    if (supabase_is_online()) {
+        crash_report_check_and_upload();
+        read_control_state_from_supabase();
+    } else {
+        ESP_LOGW("MAIN", "Offline: skipping initial crash reporting and configuration fetch");
+    }
+    initialize_sntp();
     initialise_lora();
     xTaskCreate(&device_control_task, "Device Control Task", 8192, NULL, 5, NULL);
 	xTaskCreate(&task_rx, "RX", 16384, NULL, 5, NULL);

@@ -60,4 +60,10 @@ void task_rx(void *pvParameters);
 void print_system_memory_status();
 void initialise_lora();
 
+#ifndef APP_VERSION
+#define APP_VERSION "1.0.0"
+#endif
+#define FIRMWARE_VERSION APP_VERSION
+#define ENABLE_OTA 1
+
 #endif

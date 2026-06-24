@@ -1,5 +1,8 @@
 #include "supabase.h"
+#include "wifi.h"
 #include "utils.h"
+#include "esp_timer.h"
+#include "ota.h"
 #define TAG_DB "Supabase"
 
 int motor_state;
@@ -13,22 +16,23 @@ int prev_motor_state = 0;
 // --- Function to send data to Supabase ---
 void send_data_to_supabase()
 {
-    // --- NEW: Get the device's MAC address to use as a unique ID ---
-    uint8_t mac[6] = {0};
-    esp_efuse_mac_get_default(mac); // Gets the factory-programmed MAC address
-
+    // Get the device's MAC address to use as a unique ID
     char mac_str[18];
-    snprintf(mac_str, sizeof(mac_str), "%02X:%02X:%02X:%02X:%02X:%02X",
-             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    // The 'mac_str' buffer now contains the MAC address as a string
+    get_mac_address(mac_str);
 
     // 1. Create a JSON object with your data
     cJSON *root = cJSON_CreateObject();
 
+    extern int rx_battery_percent;
+    extern float rx_solar_voltage;
+    extern char rx_alert_message[128];
+
     // --- MODIFIED: Use the MAC address string as the device_id ---
     cJSON_AddStringToObject(root, "device_id", mac_str);
     cJSON_AddNumberToObject(root, "Water_Level", water_level_percent_int);
-
+    cJSON_AddNumberToObject(root, "battery_percent", rx_battery_percent);
+    cJSON_AddNumberToObject(root, "solar_voltage", rx_solar_voltage);
+    cJSON_AddStringToObject(root, "alert_message", rx_alert_message);
 
     char *json_string = cJSON_PrintUnformatted(root);
     ESP_LOGI(TAG_DB, "JSON Payload: %s", json_string);
@@ -191,6 +195,8 @@ void read_control_state_from_supabase()
 
     if(prev_motor_state != motor_state)
     {
+        extern int64_t last_manual_override_time_us;
+        last_manual_override_time_us = esp_timer_get_time();
         prev_motor_state = motor_state;
         control_relay(prev_motor_state);
     }
@@ -201,6 +207,10 @@ void read_control_state_from_supabase()
 // --- Function to UPDATE control data ON Supabase ---
 void update_control_state_from_esp32(int new_state)
 {
+    if (!supabase_is_online()) {
+        ESP_LOGI(TAG_DB, "Offline: skipping control state update to Supabase.");
+        return;
+    }
     ESP_LOGI(TAG_DB, "Updating control state on Supabase to %d", new_state);
 
     // 1. Create JSON payload: {"led_state": <new_state>}
@@ -256,22 +266,264 @@ void update_control_state_from_esp32(int new_state)
  * @brief Task to handle device control state.
  * Reads state every 1 second.
  */
+static int parse_mac(const char *mac_str, uint8_t *mac_bytes)
+{
+    unsigned int mac[6];
+    int parsed = sscanf(mac_str, "%02X:%02X:%02X:%02X:%02X:%02X",
+                        &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+    if (parsed == 6) {
+        for (int i = 0; i < 6; i++) {
+            mac_bytes[i] = (uint8_t)mac[i];
+        }
+        return 0;
+    }
+    parsed = sscanf(mac_str, "%02x:%02x:%02x:%02x:%02x:%02x",
+                    &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+    if (parsed == 6) {
+        for (int i = 0; i < 6; i++) {
+            mac_bytes[i] = (uint8_t)mac[i];
+        }
+        return 0;
+    }
+    return -1;
+}
+
+void sync_sender_bindings_from_supabase()
+{
+    ESP_LOGI(TAG_DB, "Syncing sender bindings from Supabase...");
+
+    uint8_t mac[6] = {0};
+    esp_efuse_mac_get_default(mac);
+    char mac_str[18];
+    snprintf(mac_str, sizeof(mac_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+    char url[320];
+    snprintf(url, sizeof(url),
+         "%s/rest/v1/sender_bindings?select=sender_mac,passcode&receiver_mac=eq.%s",
+         SUPABASE_URL, mac_str);
+
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_GET,
+        .timeout_ms = 10000,
+        .buffer_size_tx = 1024,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+
+    // Set headers
+    esp_http_client_set_header(client, "apikey", SUPABASE_ANON_KEY);
+    char bearer[256];
+    snprintf(bearer, sizeof(bearer), "Bearer %s", SUPABASE_ANON_KEY);
+    esp_http_client_set_header(client, "Authorization", bearer);
+
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG_DB, "Failed to open HTTP connection for bindings: %s", esp_err_to_name(err));
+        esp_http_client_cleanup(client);
+        return;
+    }
+
+    esp_http_client_fetch_headers(client);
+    int status_code = esp_http_client_get_status_code(client);
+    ESP_LOGI(TAG_DB, "Bindings HTTP GET status code = %d", status_code);
+
+    if (status_code == 200) {
+        char response_buffer[1024] = {0};
+        int read_len = esp_http_client_read_response(client, response_buffer, sizeof(response_buffer) - 1);
+        if (read_len > 0) {
+            cJSON *root = cJSON_Parse(response_buffer);
+            if (cJSON_IsArray(root)) {
+                int size = cJSON_GetArraySize(root);
+                if (size > MAX_BINDINGS) size = MAX_BINDINGS;
+
+                binding_table_t new_table;
+                new_table.count = 0;
+
+                for (int i = 0; i < size; i++) {
+                    cJSON *item = cJSON_GetArrayItem(root, i);
+                    cJSON *sender_mac_json = cJSON_GetObjectItem(item, "sender_mac");
+                    cJSON *passcode_json = cJSON_GetObjectItem(item, "passcode");
+                    if (cJSON_IsString(sender_mac_json) && cJSON_IsString(passcode_json)) {
+                        uint8_t sender_mac_bytes[6];
+                        if (parse_mac(sender_mac_json->valuestring, sender_mac_bytes) == 0) {
+                            memcpy(new_table.entries[new_table.count].mac, sender_mac_bytes, 6);
+                            strncpy(new_table.entries[new_table.count].passcode, passcode_json->valuestring, sizeof(new_table.entries[new_table.count].passcode) - 1);
+                            new_table.entries[new_table.count].passcode[sizeof(new_table.entries[new_table.count].passcode) - 1] = '\0';
+                            
+                            // Look up existing last_seq_num to preserve it
+                            uint32_t existing_seq = 0;
+                            for (int j = 0; j < g_binding_table.count; j++) {
+                                if (memcmp(g_binding_table.entries[j].mac, sender_mac_bytes, 6) == 0) {
+                                    existing_seq = g_binding_table.entries[j].last_seq_num;
+                                    break;
+                                }
+                            }
+                            new_table.entries[new_table.count].last_seq_num = existing_seq;
+                            new_table.count++;
+                        }
+                    }
+                }
+
+                bool changed = false;
+                if (new_table.count != g_binding_table.count) {
+                    changed = true;
+                } else {
+                    for (int i = 0; i < new_table.count; i++) {
+                        if (memcmp(g_binding_table.entries[i].mac, new_table.entries[i].mac, 6) != 0 ||
+                            strcmp(g_binding_table.entries[i].passcode, new_table.entries[i].passcode) != 0) {
+                            changed = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (changed) {
+                    ESP_LOGI(TAG_DB, "Bindings updated. Saving %d entries to NVS.", (int)new_table.count);
+                    g_binding_table = new_table;
+                    save_bindings_to_nvs();
+                } else {
+                    ESP_LOGI(TAG_DB, "Local bindings cache is up to date.");
+                }
+            }
+            if (root) {
+                cJSON_Delete(root);
+            }
+        }
+    } else {
+        ESP_LOGE(TAG_DB, "Failed to fetch bindings, status = %d", status_code);
+    }
+
+    esp_http_client_cleanup(client);
+}
+
 void device_control_task(void *pvParameters)
 {
     ESP_LOGI(TAG_DB, "Device Control Task started.");
+    
+    // Initialize last_lora_recv_time_ms to current boot time to give a fresh grace period
+    last_lora_recv_time_ms = esp_timer_get_time() / 1000;
+    int64_t last_sync_time_ms = 0;
+    int64_t last_ota_check_time_ms = 0;
 
-    // One-time test to demonstrate the ESP32 updating the state,
-    // just like we had before.
     vTaskDelay(5000 / portTICK_PERIOD_MS); // Wait 5s before first update
-    ESP_LOGI(TAG_DB, "[Control Task] Demonstrating ESP32 updating state to 1...");
-    // update_control_state_from_esp32(1);
     
     while(1) {
         ESP_LOGI(TAG_DB, "[Control Task] Reading device control state...");
         read_control_state_from_supabase();
+
+        // Periodic bindings sync
+        int64_t current_time_ms = esp_timer_get_time() / 1000;
+        if (current_time_ms - last_sync_time_ms > 30000 || last_sync_time_ms == 0) {
+            sync_sender_bindings_from_supabase();
+            last_sync_time_ms = current_time_ms;
+        }
+
+        // Periodic OTA Check: every 5 minutes
+        if (current_time_ms - last_ota_check_time_ms > 300000 || last_ota_check_time_ms == 0) {
+            check_ota_updates_from_supabase();
+            last_ota_check_time_ms = current_time_ms;
+        }
+
+        // Communication Fail-Safe: check if sender went offline while motor is running
+        if (motor_state == 1 && (current_time_ms - last_lora_recv_time_ms) > LORA_FAILSAFE_TIMEOUT_MS) {
+            ESP_LOGE(TAG_DB, "FAILSAFE: Communication lost with Sender! No packet for %lld seconds. Shutting down motor.", 
+                     (current_time_ms - last_lora_recv_time_ms) / 1000);
+            motor_state = 0;
+            prev_motor_state = 0;
+            relay_off();
+        }
         
         // Wait for 1 second before the next run
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
+}
+
+void get_mac_address(char *mac_str) {
+    uint8_t mac[6] = {0};
+    esp_efuse_mac_get_default(mac);
+    snprintf(mac_str, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+esp_err_t supabase_post_rpc(const char *function_name, const char *body) {
+    if (!function_name || !body) return ESP_ERR_INVALID_ARG;
+
+    char url[256];
+    snprintf(url, sizeof(url), "%s/rest/v1/rpc/%s", SUPABASE_URL, function_name);
+
+    char bearer[256];
+    snprintf(bearer, sizeof(bearer), "Bearer %s", SUPABASE_ANON_KEY);
+
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_POST,
+        .timeout_ms = 10000,
+        .buffer_size_tx = 1024,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) return ESP_FAIL;
+
+    esp_http_client_set_header(client, "apikey", SUPABASE_ANON_KEY);
+    esp_http_client_set_header(client, "Authorization", bearer);
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+
+    esp_http_client_set_post_field(client, body, strlen(body));
+
+    esp_err_t err = esp_http_client_perform(client);
+    int status_code = 0;
+    if (err == ESP_OK) {
+        status_code = esp_http_client_get_status_code(client);
+        ESP_LOGI(TAG_DB, "RPC '%s' response status code = %d", function_name, status_code);
+    } else {
+        ESP_LOGE(TAG_DB, "RPC '%s' request failed: %s", function_name, esp_err_to_name(err));
+    }
+
+    esp_http_client_cleanup(client);
+    return (err == ESP_OK && status_code >= 200 && status_code < 300) ? ESP_OK : ESP_FAIL;
+}
+
+void check_ota_updates_from_supabase() {
+    ESP_LOGI(TAG_DB, "Checking for OTA updates from Supabase...");
+
+    char url[256];
+    snprintf(url, sizeof(url), "%s/rest/v1/system_control?select=version,bin_url,target_device_id&id=eq.1", SUPABASE_URL);
+
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_GET,
+        .timeout_ms = 10000,
+        .buffer_size_tx = 1024,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) return;
+
+    esp_http_client_set_header(client, "apikey", SUPABASE_ANON_KEY);
+    char bearer[256];
+    snprintf(bearer, sizeof(bearer), "Bearer %s", SUPABASE_ANON_KEY);
+    esp_http_client_set_header(client, "Authorization", bearer);
+
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK) {
+        esp_http_client_cleanup(client);
+        return;
+    }
+
+    esp_http_client_fetch_headers(client);
+    int status_code = esp_http_client_get_status_code(client);
+    if (status_code == 200) {
+        char response_buffer[512] = {0};
+        int read_len = esp_http_client_read_response(client, response_buffer, sizeof(response_buffer) - 1);
+        if (read_len > 0) {
+            cJSON *root = cJSON_Parse(response_buffer);
+            if (cJSON_IsArray(root) && cJSON_GetArraySize(root) > 0) {
+                cJSON *first_element = cJSON_GetArrayItem(root, 0);
+                ota_handle_system_control_record(first_element);
+            }
+            cJSON_Delete(root);
+        }
+    }
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
 }
 

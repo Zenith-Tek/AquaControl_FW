@@ -54,18 +54,24 @@ void connect_wifi()
         ESP_LOGI(TAG_WIFI,"WAITING FOR WIFI_CONNECTED_EVENT");
         xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, true, true, WIFI_CONNECTED_EVENT_TIMEOUT);
     }
-    esp_netif_ip_info_t ip_info;
     esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-
-    while (netif == NULL || !esp_netif_is_netif_up(netif)) {
+    int netif_retries = 50; // 5 seconds max wait for netif to initialize
+    while ((netif == NULL || !esp_netif_is_netif_up(netif)) && netif_retries-- > 0) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
         netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-        
     }
-    ESP_LOGI(TAG_WIFI,"Waiting for IP address from DHCP...");
-    xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, true, true, portMAX_DELAY);
-    ESP_LOGI(TAG_WIFI,"IP address acquired! Proceeding with application setup.");
 
+    if (netif != NULL && esp_netif_is_netif_up(netif)) {
+        ESP_LOGI(TAG_WIFI, "Waiting up to 10 seconds for IP address from DHCP...");
+        EventBits_t bits = xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, true, true, 10000 / portTICK_PERIOD_MS);
+        if (bits & WIFI_CONNECTED_EVENT) {
+            ESP_LOGI(TAG_WIFI, "IP address acquired! Proceeding with online application setup.");
+        } else {
+            ESP_LOGW(TAG_WIFI, "DHCP IP acquisition timed out. Proceeding in offline mode.");
+        }
+    } else {
+        ESP_LOGW(TAG_WIFI, "Wi-Fi interface not ready. Proceeding in offline mode.");
+    }
 }
 
 void wifi_init_sta(void)
@@ -95,4 +101,11 @@ void wifi_init(void)
     esp_netif_create_default_wifi_ap();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+}
+
+bool supabase_is_online(void)
+{
+    if (wifi_event_group == NULL) return false;
+    EventBits_t bits = xEventGroupGetBits(wifi_event_group);
+    return (bits & WIFI_CONNECTED_EVENT) != 0;
 }

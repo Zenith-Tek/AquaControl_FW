@@ -1,3 +1,6 @@
+#ifndef WIFI_H
+#define WIFI_H
+
 #include "wifi_provisioning/manager.h"
 #include "wifi_provisioning/scheme_softap.h"
 #include "provisioning.h"
@@ -9,3 +12,6 @@ extern EventGroupHandle_t wifi_event_group;
 void connect_wifi();
 void wifi_init_sta(void);
 void wifi_init(void);
+bool supabase_is_online(void);
+
+#endif // WIFI_H
