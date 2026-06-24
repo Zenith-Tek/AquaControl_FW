@@ -1,174 +1,78 @@
-# esp-idf-sx127x
-SX1276/77/78/79 Low Power Long Range Transceiver driver for esp-idf.
+# AquaControl - Sender Node Firmware (ESP32-C3)
 
+The **AquaControl Sender** is a battery-powered ESP32-C3 node designed to perform highly accurate ultrasonic water-level readings and securely transmit the telemetry to the Receiver node over LoRa. It is designed to run for 12+ months on a single Li-Po battery charged by a small 6V solar panel.
 
-I based on [this](https://github.com/Inteform/esp32-lora-library).
+---
 
-# Changes from the original   
-- Changed make to cmake.   
-- Added support for ESP32S2, ESP32S3, ESP32C2, ESP32C3 and ESP32C6.   
-- I left the control of CS to the driver.   
-- Added a sample of ping-pong/http/mqtt/tusb-serial/ws.   
-- Added some API functions.   
+## 🛠️ Key Features
+1. **Safe-Adaptive Sleep State Machine**:
+   * Dynamically switches deep sleep cycles (from 15 seconds up to 15 minutes) based on whether the water pump is actively filling, idle, or near full.
+2. **Unpaired & Shipping Power Optimization**:
+   * Detects offline status via consecutive missed ACKs.
+   * **Shipping Mode**: If offline and dark (solar voltage < 1.0V), sleeps for **2 hours** to conserve power during transit/storage.
+   * **Offline Mode**: If offline and in light (solar voltage $\ge$ 1.0V), sleeps for **30 minutes**.
+3. **Critical Battery Shutdown**:
+   * If the battery level drops under **10%**, the node disables the ultrasonic sensor completely and wakes up only **twice a day** (12-hour sleep) to send a low-battery emergency alert.
+4. **AES-256-GCM Cryptographic Security**:
+   * Encrypts all sensor payloads using derived 256-bit AES keys with unique 12-byte IVs.
+   * Authenticates frames with the packet header as Associated Data (AAD) to prevent replay/spoofing.
+5. **On-Demand Power Gating**:
+   * Employs P-channel MOSFETs to completely cut off the power rails of the LoRa and JSN-SR04 ultrasonic sensor prior to entering deep sleep, eliminating parasitic current leakage.
 
-# Software requirements
-ESP-IDF V5.0 or later.   
-ESP-IDF V4.4 release branch reached EOL in July 2024.   
+---
 
-# Installation
+## 🔌 Pin Configuration (ESP32-C3)
 
-```Shell
-git clone https://github.com/nopnop2002/esp-idf-sx127x
-cd esp-idf-sx127x/basic/
-idf.py set-target {esp32/esp32s2/esp32s3/esp32c2/esp32c3/esp32c6}
-idf.py menuconfig
-idf.py flash
+| Component | Function | ESP32-C3 GPIO Pin |
+|---|---|---|
+| **LoRa (SX1278)** | MOSI | GPIO 6 |
+| | MISO | GPIO 5 |
+| | SCLK | GPIO 4 |
+| | CS (NSS) | GPIO 7 |
+| | RST | GPIO 8 |
+| | DIO0 | GPIO 10 |
+| | **Power Control (MOSFET)** | **GPIO 3** (Active LOW) |
+| **JSN-SR04T** | Trigger | GPIO 0 |
+| | Echo | GPIO 1 |
+| | **Power Control (MOSFET)** | **GPIO 2** (Active LOW) |
+| **Telemetry ADC** | Battery Voltage (Divider) | GPIO 9 (ADC1 Channel 8) |
+| | Solar Panel Voltage | GPIO 18 (ADC1 Channel 4) |
+
+---
+
+## ⚡ Sleep Cycle Strategy
+
+| State | Auto Control | Pump State | Water Level | Sleep Duration |
+|---|---|---|---|---|
+| **Active Filling** | Any | ON | $\le 70\%$ | **1 Minute** (60s) |
+| **Active Filling** | Any | ON | $70\% - 80\%$ | **30 Seconds** |
+| **Active Filling** | Any | ON | $> 80\%$ | **15 Seconds** |
+| **Idle** | ON | OFF | $< 80\%$ | **5 Minutes** (300s) |
+| **Idle** | OFF | OFF | $< 80\%$ | **15 Minutes** (900s) |
+| **Safety Ceiling** | Any | OFF | $\ge 80\%$ | **2 Minutes** (120s) |
+| **Shipping Mode** | Any | Any | Dark Box, Unpaired | **2 Hours** (7200s) |
+| **Offline Mode** | Any | Any | Daylight, Unpaired | **30 Minutes** (1800s) |
+| **Battery Critical** | Any | Any | $< 10\%$ | **12 Hours** (43200s) |
+
+---
+
+## 🚀 Building & Flashing
+
+This project uses the ESP-IDF framework (V5.0 or later).
+
+### 1. Set Up Environment
+```bash
+. /path/to/esp-idf/export.sh
 ```
 
-__Note for ESP32C3__   
-For some reason, there are development boards that cannot use GPIO06, GPIO08, GPIO09, GPIO19 for SPI clock pins.   
-According to the ESP32C3 specifications, these pins can also be used as SPI clocks.   
-I used a raw ESP-C3-13 to verify that these pins could be used as SPI clocks.   
-
-
-# Configuration for Transceiver   
-
-![config-lora-1](https://user-images.githubusercontent.com/6020549/152313802-d88ed3ab-dff5-4fe5-a05f-742c2e6e0aa4.jpg)
-
-## Frequency used   
-![config-lora-2](https://github.com/user-attachments/assets/91c4b8b8-e18c-4dbb-b880-40d2cd460272)
-
-## Using a transceiver other than 433MHz / 866MHz / 915MHz   
-![config-lora-3](https://github.com/user-attachments/assets/62984a47-681e-48f4-a408-d8429fceea58)
-
-## advanced settings   
-![config-lora-4](https://github.com/user-attachments/assets/513f7bca-63ea-4045-a517-8de054fbb804)
-
-LoRa mode has the following three communication parameters.   
-1.Error Coding Rate (= CR)   
-2.Signal Bandwidth (= BW)   
-3.Spreading Factor (= SF)   
-The communication speed is faster when BW is large, CR is small, and SF is small.   
-However, as the communication speed increases, the reception sensitivity deteriorates, so select the one that best suits your needs.   
-
-- Error coding rate   
-1:4/5(Default)   
-2:4/6   
-3:4/7   
-4:4/8   
-
-- Signal Bandwidth   
-0:7.8 kHz   
-1:10.4 kHz   
-2:15.6 kHz   
-3:20.8kHz   
-4:31.25 kHz   
-5:41.7 kHz   
-6:62.5 kHz   
-7:125 kHz(Default)   
-8:250 kHz   
-9:500 kHz   
-In the lower band (169MHz), signal bandwidths 8&9 are not supported.   
-
-- Spreading Factor (expressed as a base-2 logarithm)   
-6:64 chips / symbol   
-7:128 chips / symbol(Default)   
-8:256 chips / symbol   
-9:512 chips / symbol   
-10:1024 chips / symbol   
-11:2048 chips / symbol   
-12:4096 chips / symbol   
-
-## SPI BUS selection   
-![config-lora-5](https://github.com/user-attachments/assets/f3dcf76e-1bf4-4c05-98ac-f9174f52820e)
-
-The ESP32 series has three SPI BUSs.   
-SPI1_HOST is used for communication with Flash memory.   
-You can use SPI2_HOST and SPI3_HOST freely.   
-When you use SDSPI(SD Card via SPI), SDSPI uses SPI2_HOST BUS.   
-When using this module at the same time as SDSPI or other SPI device using SPI2_HOST, it needs to be changed to SPI3_HOST.   
-When you don't use SDSPI, both SPI2_HOST and SPI3_HOST will work.   
-Previously it was called HSPI_HOST / VSPI_HOST, but now it is called SPI2_HOST / SPI3_HOST.   
-
-# Wirering
-
-|SX127X||ESP32|ESP32-S2/S3|ESP32-C2/C3/C6|
-|:-:|:-:|:-:|:-:|:-:|
-|RST|--|GPIO16|GPIO38|GPIO3|
-|MISO|--|GPIO19|GPIO37|GPIO4|
-|SCK|--|GPIO18|GPIO36|GPIO5|
-|MOSI|--|GPIO23|GPIO35|GPIO6|
-|NSS|--|GPIO15|GPIO34|GPIO7|
-|GND|--|GND|GND|GND|
-|VCC|--|3.3V|3.3V|3.3V|
-
-__You can change it to any pin using menuconfig.__   
-
-
-# Communication with SX126X
-LoRa's packet format is strictly specified.   
-Therefore, if the following three parameters are the same, they can communicate with each other.   
-- Signal Bandwidth (= BW)   
-- Error Cording Rate (= CR)   
-- Spreading Factor (= SF)   
-
-# About communication speed and maximum reception sensitivity   
-In LoRa modulation mode, the communication speed (bps) and maximum reception sensitivity (RSSI) are determined by a combination of spreading factor (SF), bandwidth (BW), and coding rate (CDR).   
-- SF   
-Increasing SF increases the spreading factor and improves noise resistance.   
-This improves reception sensitivity and extends communication distance, but communication speed decreases.   
-- BW   
-Bandwidth sets the width of the communication band. Setting a larger bandwidth will improve communication speed.   
-However, the radio reception sensitivity (RSSI) will decrease.   
-- CDR   
-CDR (CodingRate) sets the level of error correction rate.   
-The larger the number, the better the correction rate, but the amount of information per packet increases.   
-(No effect on maximum reception sensitivity)   
-You can set whether to use Optimaise for each CDR, and enabling it will improve the correction rate, but will reduce communication speed.   
-
-# Throughput
-- With varying Signal Bandwidth(BW) (Unit=Bytes/Sec)   
-	ESP32@160/433MHz/CR=1/SF=7   
-	|BW=0(7.8KHz)|BW=2(15.6KHz)|BW=4(31.25KHz)|BW=6(62.5KHz)|BW=7(125KHz)|BW=8(250KHz)|BW=9(500KHz)|
-	|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-	|37.50|83.18|165.75|296.32|618.93|1153.85|2031.87|
-
-- With varying Error coding rate(CR) (Unit=Bytes/Sec)   
-	ESP32@160/433MHz/BW=7/SF=7   
-	|CR=1(4/5)|CR=2(4/6)|CR=3(4/7)|CR=4(4/8)|
-	|:-:|:-:|:-:|:-:|
-	|618.93|543.13|468.32|410.63|
-
-
-# How to use this component in your project   
-Create idf_component.yml in the same directory as main.c.   
-```
-YourProject --+-- CMakeLists.txt
-              +-- main --+-- main.c
-                         +-- CMakeLists.txt
-                         +-- idf_component.yml
+### 2. Configure target
+```bash
+cd aquacontrol_sender/fw
+idf.py set-target esp32c3
 ```
 
-Contents of idf_component.yml.
+### 3. Build & Flash
+```bash
+idf.py build
+idf.py -p [PORT] flash monitor
 ```
-dependencies:
-  nopnop2002/sx127x:
-    path: components/lora/
-    git: https://github.com/nopnop2002/esp-idf-sx127x.git
-```
-
-When you build a projects esp-idf will automaticly fetch repository to managed_components dir and link with your code.   
-```
-YourProject --+-- CMakeLists.txt
-              +-- main --+-- main.c
-              |          +-- CMakeLists.txt
-              |          +-- idf_component.yml
-              +-- managed_components ----- nopnop2002__sx127x
-```
-
-# Datasheet
-Datasheet is [here](https://github.com/jgromes/RadioLib/files/8646997/DS_SX1276-7-8-9_W_APP_V7.pdf).   
-
-# Reference
-https://github.com/nopnop2002/esp-idf-sx126x
-
