@@ -1,11 +1,20 @@
 #include "main.h"
+#include "esp_mac.h"
+#include "lora_protocol.h"
+#include "mbedtls/sha256.h"
+#include "mbedtls/gcm.h"
+#include "esp_random.h"
+
+#define SENDER_PASSCODE "384910"
 
 extern float ultrasonic_data; 
-unsigned long elapsed_time = 0;
-unsigned long start_time;
+RTC_DATA_ATTR uint32_t sender_seq_num = 0;
+RTC_DATA_ATTR uint8_t rtc_motor_state = 0;
+RTC_DATA_ATTR uint8_t rtc_auto_control = 1;
+RTC_DATA_ATTR uint32_t rtc_missed_acks = 0;
 struct timeval tv;
+static uint8_t g_sender_reboot_reason_flag = 0;
 
-static const char *TAG_1 = "LORA_SENDER";
 #define TAG_INFO "APP"
 
 void print_system_memory_status() 
@@ -59,47 +68,274 @@ void print_system_memory_status()
 }
 
 
+int lora_read_reg(int reg);
+void lora_receive(void);
+
+static bool is_channel_busy(void)
+{
+    // Put transceiver in receive mode to listen to carrier
+    lora_receive();
+    vTaskDelay(pdMS_TO_TICKS(10)); // Allow LNA and RSSI to stabilize
+    
+    // Read RSSI register 0x1b
+    int rssi_reg = lora_read_reg(0x1b);
+    int rssi = rssi_reg - 164; // 433MHz offset is 164
+    
+    // If RSSI is above -95 dBm, channel is busy
+    if (rssi > -95) {
+        ESP_LOGW("LORA_CSMA", "Channel busy! RSSI: %d dBm", rssi);
+        return true;
+    }
+    return false;
+}
+
 void task_tx(void *pvParameters)
 {
     ESP_LOGI(pcTaskGetName(NULL), "Start");
-    uint8_t buf[256]; // Maximum Payload size of SX1276/77/78/79 is 255
 
+    // 1. Check battery percentage first to see if we should enter emergency low power shutdown
+    uint8_t batt = read_battery_percentage();
+    uint8_t solar_volt_x10 = read_solar_voltage();
+
+    if (batt < 10) {
+        ESP_LOGE(pcTaskGetName(NULL), "Battery is critically low (%d%% < 10%%)! Entering shutdown mode.", batt);
+
+        // Power ON LoRa module only (keep ultrasonic OFF to save power)
+        power_lora_only_on();
+        vTaskDelay(pdMS_TO_TICKS(50));
+
+        // Derive AES key
+        uint8_t aes_key[32];
+        mbedtls_sha256((const unsigned char *)SENDER_PASSCODE, strlen(SENDER_PASSCODE), aes_key, 0);
+
+        secure_lora_packet_t packet;
+        esp_efuse_mac_get_default(packet.src_mac);
+        memset(packet.dest_mac, 0xFF, 6); // Broadcast
+        packet.seq_num = sender_seq_num++;
+
+        secure_payload_t payload;
+        payload.distance_cm = -1.0f; // Invalid/emergency indicator
+        payload.battery_percent = batt;
+        payload.solar_voltage_x10 = solar_volt_x10;
+        payload.flags = 1 | (g_sender_reboot_reason_flag << 1); // flag bit 0 = low battery, bits 1-3 = reboot reason
+
+        esp_fill_random(packet.iv, 12);
+
+        mbedtls_gcm_context gcm_ctx;
+        mbedtls_gcm_init(&gcm_ctx);
+        mbedtls_gcm_setkey(&gcm_ctx, MBEDTLS_CIPHER_ID_AES, aes_key, 256);
+        mbedtls_gcm_crypt_and_tag(&gcm_ctx, MBEDTLS_GCM_ENCRYPT,
+                                  sizeof(secure_payload_t),
+                                  packet.iv, 12,
+                                  (const unsigned char *)&packet, 16,
+                                  (const unsigned char *)&payload, packet.ciphertext,
+                                  16, packet.tag);
+        mbedtls_gcm_free(&gcm_ctx);
+
+        // Transmit emergency packet
+        lora_send_packet((uint8_t *)&packet, sizeof(packet));
+        ESP_LOGI(pcTaskGetName(NULL), "Sent EMERGENCY packet -> Seq: %lu, Battery: %d%%, Solar: %.1fV",
+                 (unsigned long)packet.seq_num, payload.battery_percent,
+                 (float)payload.solar_voltage_x10 / 10.0f);
+
+        // Immediately power OFF LoRa to conserve power
+        power_peripherals_off();
+
+        // Sleep for 12 hours (43,200 seconds)
+        uint32_t emergency_sleep_sec = 43200;
+        ESP_LOGI(pcTaskGetName(NULL), "Entering emergency deep sleep for 12 hours...");
+        deepsleep(emergency_sleep_sec);
+
+        while (1) {
+            vTaskDelay(1);
+        }
+    }
+
+    // --- Normal Process (Battery >= 10%) ---
+    // 2. Power ON peripherals (LoRa and JSN-SR04)
+    power_peripherals_on();
+    // Allow 50ms for LDO and sensor power rails to stabilize
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    // 3. Perform the distance measurement (median filter)
+    float dist = read_filtered_ultrasonic_distance();
+
+    // 4. CSMA/CA Carrier Sense
+    int retries = 5;
+    while (retries-- > 0) {
+        if (!is_channel_busy()) {
+            break;
+        }
+        uint32_t backoff = 50 + (esp_random() % 200);
+        ESP_LOGI("LORA_CSMA", "Channel busy, backing off for %lu ms...", (unsigned long)backoff);
+        vTaskDelay(pdMS_TO_TICKS(backoff));
+    }
+
+    // 5. Build, Encrypt, and Transmit Packet
+    uint8_t aes_key[32];
+    mbedtls_sha256((const unsigned char *)SENDER_PASSCODE, strlen(SENDER_PASSCODE), aes_key, 0);
+
+    secure_lora_packet_t packet;
+    esp_efuse_mac_get_default(packet.src_mac);
+    memset(packet.dest_mac, 0xFF, 6); // Broadcast destination
+    packet.seq_num = sender_seq_num++;
+
+    secure_payload_t payload;
+    payload.distance_cm = dist;
+    payload.battery_percent = batt;
+    payload.solar_voltage_x10 = solar_volt_x10;
+    payload.flags = (g_sender_reboot_reason_flag << 1); // bits 1-3 = reboot reason
+
+    esp_fill_random(packet.iv, 12);
+
+    mbedtls_gcm_context gcm_ctx;
+    mbedtls_gcm_init(&gcm_ctx);
+    mbedtls_gcm_setkey(&gcm_ctx, MBEDTLS_CIPHER_ID_AES, aes_key, 256);
+    mbedtls_gcm_crypt_and_tag(&gcm_ctx, MBEDTLS_GCM_ENCRYPT,
+                              sizeof(secure_payload_t),
+                              packet.iv, 12,
+                              (const unsigned char *)&packet, 16,
+                              (const unsigned char *)&payload, packet.ciphertext,
+                              16, packet.tag);
+    mbedtls_gcm_free(&gcm_ctx);
+
+    // Send the secure packet over LoRa
+    lora_send_packet((uint8_t *)&packet, sizeof(packet));
+    ESP_LOGI(pcTaskGetName(NULL), "Sent secure packet -> Seq: %lu, Distance: %.2f cm, Battery: %d%%, Solar: %.1fV, MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+             (unsigned long)packet.seq_num, payload.distance_cm, payload.battery_percent,
+             (float)payload.solar_voltage_x10 / 10.0f,
+             packet.src_mac[0], packet.src_mac[1], packet.src_mac[2],
+             packet.src_mac[3], packet.src_mac[4], packet.src_mac[5]);
+
+    // Check for packet loss
+    int lost = lora_packet_lost();
+    if (lost != 0) {
+        ESP_LOGW(pcTaskGetName(NULL), "%d packets lost", lost);
+    }
+
+    // --- Wait for ACK ---
+    ESP_LOGI(pcTaskGetName(NULL), "Listening for ACK...");
+    lora_receive();
+    bool ack_received = false;
+    secure_ack_packet_t ack_packet;
+    int rx_timeout = 200; // ms
+    while (rx_timeout > 0) {
+        if (lora_received()) {
+            int rx_len = lora_receive_packet((uint8_t *)&ack_packet, sizeof(ack_packet));
+            if (rx_len == sizeof(secure_ack_packet_t)) {
+                ack_received = true;
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+        rx_timeout -= 5;
+    }
+
+    if (ack_received) {
+        secure_ack_payload_t ack_payload;
+        mbedtls_gcm_context gcm_ctx_ack;
+        mbedtls_gcm_init(&gcm_ctx_ack);
+        mbedtls_gcm_setkey(&gcm_ctx_ack, MBEDTLS_CIPHER_ID_AES, aes_key, 256);
+        int ret = mbedtls_gcm_crypt_and_tag(&gcm_ctx_ack, MBEDTLS_GCM_DECRYPT,
+                                            sizeof(secure_ack_payload_t),
+                                            ack_packet.iv, 12,
+                                            (const unsigned char *)&ack_packet, 16,
+                                            ack_packet.ciphertext, (unsigned char *)&ack_payload,
+                                            16, ack_packet.tag);
+        mbedtls_gcm_free(&gcm_ctx_ack);
+        if (ret == 0) {
+            rtc_motor_state = ack_payload.motor_state;
+            rtc_auto_control = ack_payload.auto_control_enabled;
+            rtc_missed_acks = 0; // Reset missed ACK counter
+            ESP_LOGI(pcTaskGetName(NULL), "Decrypted ACK -> Motor: %d, AutoControl: %d",
+                     rtc_motor_state, rtc_auto_control);
+        } else {
+            rtc_missed_acks++; // Count GCM failure as missed ACK
+            ESP_LOGE(pcTaskGetName(NULL), "ACK decryption failed (code %d)!", ret);
+        }
+    } else {
+        rtc_missed_acks++; // Increment missed ACK counter
+        ESP_LOGW(pcTaskGetName(NULL), "No ACK received within 200ms (Consecutive missed: %lu)", (unsigned long)rtc_missed_acks);
+    }
+
+    // 6. Power OFF peripherals to conserve energy
+    power_peripherals_off();
+
+    // 7. Calculate Dynamic Sleep Interval
+    uint32_t sleep_time_sec = 300; // Default 5 minutes
+    float water_level_pct = 0.0f;
+
+    if (rtc_missed_acks >= 3) {
+        float solar_volt = (float)solar_volt_x10 / 10.0f;
+        if (solar_volt < 1.0f) {
+            // Boxed/Shipping state: Dark box and offline. Sleep 2 hours to conserve battery.
+            sleep_time_sec = 7200; 
+            ESP_LOGW(pcTaskGetName(NULL), "Unpaired/Offline in DARK (Solar: %.2fV). Shipping mode: sleeping for 2 hours.", solar_volt);
+        } else {
+            // Offline state: Daylight but offline. Sleep 30 minutes to save power.
+            sleep_time_sec = 1800; 
+            ESP_LOGW(pcTaskGetName(NULL), "Unpaired/Offline in LIGHT (Solar: %.2fV). Offline mode: sleeping for 30 minutes.", solar_volt);
+        }
+    } else {
+        float tank_height = 200.0f;
+        float min_dist = 20.0f;
+        if (dist > 0.0f && dist < tank_height) {
+            water_level_pct = ((tank_height - dist) / (tank_height - min_dist)) * 100.0f;
+        }
+        if (water_level_pct < 0.0f) water_level_pct = 0.0f;
+        if (water_level_pct > 100.0f) water_level_pct = 100.0f;
+
+        if (rtc_motor_state == 1) {
+            // Active filling
+            if (water_level_pct <= 70.0f) {
+                sleep_time_sec = 60;  // 1 minute
+            } else if (water_level_pct <= 80.0f) {
+                sleep_time_sec = 30;  // 30 seconds
+            } else {
+                sleep_time_sec = 15;  // 15 seconds
+            }
+        } else {
+            // Pump is OFF
+            if (water_level_pct < 80.0f) {
+                if (rtc_auto_control == 0) {
+                    sleep_time_sec = 900; // 15 minutes (Auto OFF)
+                } else {
+                    sleep_time_sec = 300; // 5 minutes (Auto ON)
+                }
+            } else {
+                sleep_time_sec = 120; // 2 minutes (Safety ceiling near full)
+            }
+        }
+        ESP_LOGI(pcTaskGetName(NULL), "Normal state active. Water Level: %.1f%%", water_level_pct);
+    }
+
+    ESP_LOGI(pcTaskGetName(NULL), "Entering deep sleep for %lu seconds...", (unsigned long)sleep_time_sec);
+    deepsleep(sleep_time_sec);
+
+    // In case deep sleep fails
     while (1) {
-		elapsed_time = (esp_timer_get_time() - start_time) / 1000000; 
-		ESP_LOGI(TAG_1, "Elapsed time: %lu seconds", elapsed_time);
-		if (elapsed_time < 20) {
-			TickType_t nowTick = xTaskGetTickCount();
-
-			// Format the float data into the buffer
-			int send_len = snprintf((char *)buf, sizeof(buf), 
-									"Ultrasonic data: %.2f CM, @ Tick: %"PRIu32,
-									ultrasonic_data, nowTick);
-
-			// Send the packet over LoRa
-			lora_send_packet(buf, send_len);
-			ESP_LOGI(pcTaskGetName(NULL), "%d byte packet sent: %s", send_len, buf);
-
-			// Check for packet loss
-			int lost = lora_packet_lost();
-			if (lost != 0) {
-				ESP_LOGW(pcTaskGetName(NULL), "%d packets lost", lost);
-			}
-
-			// Delay before next transmission
-			vTaskDelay(pdMS_TO_TICKS(5000));			
-
-		}
-		else
-		{
-			ESP_LOGI(TAG_1, "20 seconds elapsed, entering deep sleep for 40 sec...");
-            deepsleep();
-		}
-
+        vTaskDelay(1);
     }
 }
 
-void app_main()
+void app_main(void)
 {
+    // Determine reboot reason
+    esp_reset_reason_t reason = esp_reset_reason();
+    if (reason == ESP_RST_SW) {
+        g_sender_reboot_reason_flag = 1;
+    } else if (reason == ESP_RST_PANIC) {
+        g_sender_reboot_reason_flag = 2;
+    } else if (reason == ESP_RST_INT_WDT || reason == ESP_RST_TASK_WDT || reason == ESP_RST_WDT) {
+        g_sender_reboot_reason_flag = 3;
+    } else if (reason == ESP_RST_BROWNOUT) {
+        g_sender_reboot_reason_flag = 4;
+    } else if (reason == ESP_RST_EXT) {
+        g_sender_reboot_reason_flag = 5;
+    } else if (reason != ESP_RST_POWERON && reason != ESP_RST_DEEPSLEEP) {
+        g_sender_reboot_reason_flag = 6;
+    }
+
 	print_system_memory_status();
 
 	if (lora_init() == 0) {
@@ -118,23 +354,14 @@ void app_main()
 	int sf = 7;
 
 	lora_set_coding_rate(cr);
-	//lora_set_coding_rate(CONFIG_CODING_RATE);
-	//cr = lora_get_coding_rate();
 	ESP_LOGI(pcTaskGetName(NULL), "coding_rate=%d", cr);
 
 	lora_set_bandwidth(bw);
-	//lora_set_bandwidth(CONFIG_BANDWIDTH);
-	//int bw = lora_get_bandwidth();
 	ESP_LOGI(pcTaskGetName(NULL), "bandwidth=%d", bw);
 
 	lora_set_spreading_factor(sf);
-	//lora_set_spreading_factor(CONFIG_SF_RATE);
-	//int sf = lora_get_spreading_factor();
 	ESP_LOGI(pcTaskGetName(NULL), "spreading_factor=%d", sf);
-	// ultrasonic_init();
-	start_time = esp_timer_get_time();  // Start time in microseconds
+
     ultrasonic_init();
-	xTaskCreate(&task_tx, "TX", 1024*3, NULL, 5, NULL);
-
-
+	xTaskCreate(&task_tx, "TX", 1024*4, NULL, 5, NULL);
 }
