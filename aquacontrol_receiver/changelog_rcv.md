@@ -4,6 +4,23 @@ This document details the modifications and additions made to the **Receiver** f
 
 ---
 
+## [2026-06-26] - BLE OTA Downlink Relay Integration
+
+### 1. Database Schema & Control Integrations
+* **Supabase Control State Expansion**:
+  * Updated `read_control_state_from_supabase()` and `parse_realtime_payload()` in `supabase.c` to query and parse the new `sender_ble_enable` column from the `device_control` table in Supabase.
+  * Supports both regular REST HTTP polling and instant Phoenix WebSocket real-time changes.
+* **Asynchronous Database Feedback**:
+  * Created `update_sender_ble_enable_in_supabase()` to execute a PATCH request setting `sender_ble_enable` back to `false` in Supabase. This automatically resets the dashboard UI once the update sequence is triggered.
+
+### 2. LoRa Protocol & Transmission Flow
+* **Downlink Flag Embedding**:
+  * Updated `secure_ack_payload_t` in `lora_protocol.h` to include a `flags` byte.
+  * Configured the ACK packer in `zt_lora.c` to parse `g_sender_ble_enable_req` and set flag bit 0 when preparing the encrypted ACK payload.
+  * Triggers database update to reset the flag immediately after transmitting the ACK packet over LoRa.
+
+---
+
 ## 1. System Resilience & Offline Reliability
 * **Non-Blocking DHCP Timeout**: Refactored the Wi-Fi connection logic in `wifi.c` to prevent blocking the boot sequence if DHCP is delayed or the router is offline. Added a 10-second timeout. If it times out, the device logs a warning and proceeds in **offline mode**, booting the LoRa radio and local relay control tasks immediately.
 * **Offline Boot Optimization**: Bypasses initial crash report uploads and Supabase configuration syncs during offline boots in `main.c` to eliminate a 20-second startup delay. All actions automatically resume in the background once Wi-Fi is restored.
