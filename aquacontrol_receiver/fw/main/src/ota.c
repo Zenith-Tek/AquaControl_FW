@@ -70,8 +70,7 @@ void ota_task(void *pvParameter) {
     esp_err_t ret = ESP_FAIL;
     for (int attempt = 1; attempt <= OTA_MAX_ATTEMPTS; attempt++) {
         if (attempt > 1) {
-            ESP_LOGW(TAG_OTA, "Retry %d/%d in %d ms", attempt, OTA_MAX_ATTEMPTS,
-                     OTA_BACKOFF_MS[attempt - 1]);
+            ESP_LOGW(TAG_OTA, "Retry %d/%d in %d ms", attempt, OTA_MAX_ATTEMPTS, OTA_BACKOFF_MS[attempt - 1]);
             vTaskDelay(pdMS_TO_TICKS(OTA_BACKOFF_MS[attempt - 1]));
         }
         ret = esp_https_ota(&ota_config);
@@ -92,7 +91,9 @@ void ota_task(void *pvParameter) {
         vTaskDelay(pdMS_TO_TICKS(1000));
         esp_restart();
     } else {
-        ESP_LOGE(TAG_OTA, "OTA gave up after %d attempts", OTA_MAX_ATTEMPTS);
+        ESP_LOGE(TAG_OTA, "OTA gave up after %d attempts. Rebooting to restore clean state...", OTA_MAX_ATTEMPTS);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        esp_restart();
     }
     free(job);
     vTaskDelete(NULL);
@@ -140,12 +141,20 @@ static void ota_spawn(const char *url, const char *version) {
         ota_report(version, "failed", "untrusted_url", -1);
         return;
     }
+
+    g_ota_in_progress = true;
+    supabase_stop_websocket();
+
     ota_job_t *job = calloc(1, sizeof(ota_job_t));
-    if (!job) return;
+    if (!job) {
+        g_ota_in_progress = false;
+        return;
+    }
     strncpy(job->url, url, sizeof(job->url) - 1);
     strncpy(job->version, version ? version : "", sizeof(job->version) - 1);
     if (xTaskCreate(ota_task, "ota_task", 12288, job, 10, NULL) != pdPASS) {
         ESP_LOGE(TAG_OTA, "Failed to create OTA task!");
+        g_ota_in_progress = false;
         free(job);
     }
 }
