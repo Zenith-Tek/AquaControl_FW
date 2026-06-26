@@ -2,6 +2,7 @@
 #include "wifi.h"
 #include <stdio.h>
 #include <time.h>
+#include <sys/time.h>
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "rc_gpio.h"
@@ -30,6 +31,8 @@ float water_level_percentage;
 void initialize_sntp(void)
 {
     ESP_LOGI(TAG, "Initializing SNTP...");
+    setenv("TZ", "IST-5:30", 1);
+    tzset();
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
     esp_sntp_setservername(0, "pool.ntp.org");
     esp_sntp_init();
@@ -149,14 +152,9 @@ void process_lora_data(float empty_space, uint8_t battery_percent, uint8_t solar
 
 void control_relay(int motor_control)
 {
-    if(motor_control)
-    {
-        relay_on();
-    }
-    else
-    {
-        relay_off();
-    }
+    gpio_set_level(RELAY_GPIO, motor_control ? 1 : 0);
+    ESP_LOGI(TAG, "relay %s (applied from database)", motor_control ? "on" : "off");
+    trigger_heartbeat_now();
 }
 
 void relay_on()
