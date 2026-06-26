@@ -4,6 +4,49 @@ This changelog documents the new features, architecture refinements, security me
 
 ---
 
+## [2026-06-26] - BLE-Based OTA Update System & Advanced Power Optimizations
+
+### 1. On-Demand BLE OTA Update System
+* **LoRa Downlink Relay Protocol**:
+  * Expanded `secure_ack_payload_t` in `lora_protocol.h` to include a `flags` byte. Bit 0 represents the BLE Enable command.
+* **Receiver-Side Database & LoRa Logic**:
+  * Modified `supabase.c` to fetch and parse the `sender_ble_enable` control column from the `device_control` table in Supabase via REST polling and Phoenix WebSocket real-time streams.
+  * Modified `zt_lora.c` to set bit 0 of the ACK payload flags if a BLE trigger is requested.
+  * Added `update_sender_ble_enable_in_supabase()` to PATCH the database column back to `false` immediately after sending the LoRa ACK containing the trigger.
+* **Sender-Side NimBLE Stack & Partition Scheme**:
+  * Configured `sdkconfig.defaults` to enable the lightweight NimBLE Bluetooth stack, allocate dual 1MB app partition slots (`TWO_OTA`), and define 4MB flash layout settings.
+  * Updated `main.c` to parse the BLE enable bit in decrypted ACKs, write the RTC-retained state `rtc_ble_enable_pending = 1`, and reboot.
+  * Implemented a boot-time check in `app_main` that redirects execution directly to `start_ble_ota_mode()` if the RTC pending flag is set, bypassing all normal sensor/telemetry routines to conserve power.
+* **BLE GATT Service & Flash Operations**:
+  * Created `ble_ota.c/h` implementing a GATT server with custom UUIDs:
+    * **Control Characteristic**: Handles Start (0x01), Commit/Finish (0x02), and Abort (0x03) commands.
+    * **Data Characteristic**: Receives streamed binary chunks and writes them directly to the passive partition using `esp_ota_ops`.
+  * Implemented a 5-minute inactivity watchdog. If no BLE client connects or if streaming halts, the NimBLE stack is safely de-initialized, the pending flag is cleared, and the Sender enters deep sleep.
+  * Completely disabled I2C peripheral power and clocks at software/hardware levels and isolated default I2C pins.
+
+### 2. Comprehensive Power Optimization Suite (Sender)
+* **Phase 1: Configuration, CPU Clock & GPIO Isolation**:
+  * Added `PRODUCTION_MODE` toggle to `main.h`. If enabled, all diagnostic serial logs are dynamically disabled at startup to reduce UART active execution overhead.
+  * Downclocked default CPU frequency from 160 MHz to 80 MHz, saving ~15 mA during active phases.
+  * Reduced LoRa ACK receive wait timeout from 200 ms to 50 ms.
+  * Reduced peripheral stabilization delay to 20 ms.
+  * Isolated unused GPIO 2 and GPIO 8 (default SCL/SDA pins) as floating pads during deep sleep to prevent leakage current.
+* **Phase 2: Active Measurement Duration Reduction**:
+  * Reduced JSN-SR04T ultrasonic sample count from 5 to 3.
+  * Decreased ping spacing delay from 60 ms to 35 ms, reducing active sensor measurement time from ~400 ms to ~200 ms.
+* **Phase 3: Smart Wakeup & Event-Based Telemetry**:
+  * Declared RTC-retained variables to track state across deep sleep cycles.
+  * **Hysteresis Filtering**: Suppresses small reading jitters; requires 2 consecutive distance readings differing by >= 4 cm from the last transmitted value to qualify as a valid change.
+  * **Battery Shift**: Transmits only when battery shifts by >= 2% from the last transmitted value.
+  * **Heartbeat Backup**: Forces transmission every 2 hours if no environmental changes occur.
+  * **Motor Sync**: Enforces 100% telemetry frequency when the pump is active (`rtc_motor_state == 1`).
+  * Skips LoRa transmission cycles and goes to sleep immediately if no telemetry event occurs.
+* **Phase 4: Dynamic LoRa Power Control**:
+  * Tracks the RSSI of the last received LoRa ACK in RTC memory.
+  * Dynamically adjusts transmission power: +10 dBm (RSSI > -70 dBm), +14 dBm (RSSI > -85 dBm), or +20 dBm (max) on poor signal or missed ACKs.
+
+---
+
 ## 1. Cryptographic Security & Communication Protocol
 * **AES-256-GCM Secure Handshake**:
   * Integrated AES-256-GCM encryption/decryption on all LoRa transmissions.
