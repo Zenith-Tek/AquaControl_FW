@@ -15,4 +15,18 @@ menu "Application Configuration"
 				As the receiver.
 	endchoice
 
+	config RELAY_GPIO
+		int "Relay GPIO Number"
+		default 4
+		help
+			GPIO pin number connected to the relay control input.
+
+	config SWITCH_GPIO
+		int "Switch/Button GPIO Number"
+		default 16 if IDF_TARGET_ESP32S3
+		default 27 if IDF_TARGET_ESP32
+		default 16
+		help
+			GPIO pin number connected to the physical manual toggle button/switch.
+
 endmenu 
