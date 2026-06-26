@@ -1,7 +1,5 @@
 .vscode/
-.cache/
+**/.cache/
 ref/
-aquacontrol_receiver/fw/.cache/
-aquacontrol_sender/fw/.cache/
 aquacontrol_receiver/fw/build/
 aquacontrol_sender/fw/build/
