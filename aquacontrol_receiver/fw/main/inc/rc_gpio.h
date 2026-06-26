@@ -3,9 +3,11 @@
 
 #include <stdint.h>
 #include "esp_timer.h"  // for esp_timer_get_time()
-// GPIO numbers
-#define RELAY_GPIO 4
-#define SWITCH_GPIO 16
+#include "sdkconfig.h"
+
+// GPIO numbers mapped to Kconfig configurations
+#define RELAY_GPIO CONFIG_RELAY_GPIO
+#define SWITCH_GPIO CONFIG_SWITCH_GPIO
 
 // Function to setup GPIOs (Relay output + Switch input with interrupt)
 void setup_gpios(void);
