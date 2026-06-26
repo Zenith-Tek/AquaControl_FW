@@ -203,15 +203,15 @@ static float get_single_reading(void)
 
 float read_filtered_ultrasonic_distance(void)
 {
-    float readings[5];
+    float readings[3];
     int valid_count = 0;
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 3; i++) {
         float val = get_single_reading();
         if (val > 0.0f && val < 500.0f) {
             readings[valid_count++] = val;
         }
-        vTaskDelay(pdMS_TO_TICKS(60));
+        vTaskDelay(pdMS_TO_TICKS(35));
     }
 
     if (valid_count == 0) {
@@ -254,6 +254,21 @@ void ultrasonic_init(void)
     gpio_config(&io_conf);
 }
 
+static void isolate_unused_gpios(void)
+{
+    // Note: I2C driver is completely uninitialized and not used anywhere in the Sender firmware.
+    // The I2C hardware peripheral remains clock-gated (fully powered down) during active mode,
+    // and is completely power-gated (0 uA) during deep sleep.
+    
+    // GPIO 8 is NC (Not Connected) on the schematic. Isolate to prevent leakage.
+    gpio_reset_pin(GPIO_NUM_8);
+    gpio_set_pull_mode(GPIO_NUM_8, GPIO_FLOATING);
+
+    // GPIO 2 is NC (Not Connected) on the schematic. Isolate to prevent leakage.
+    gpio_reset_pin(GPIO_NUM_2);
+    gpio_set_pull_mode(GPIO_NUM_2, GPIO_FLOATING);
+}
+
 void deepsleep(uint32_t sleep_time_sec)
 {
     struct timeval now;
@@ -274,5 +289,6 @@ void deepsleep(uint32_t sleep_time_sec)
     ESP_LOGI(TAG, "Entering deep sleep");
     gettimeofday(&sleep_enter_time, NULL);
 
+    isolate_unused_gpios();
     esp_deep_sleep_start();
 }
