@@ -26,10 +26,11 @@ typedef struct __attribute__((packed)) {
     uint8_t ciphertext[sizeof(secure_payload_t)];
 } secure_lora_packet_t;
 
-// ACK payload sent from Receiver to Sender (2 bytes)
+// ACK payload sent from Receiver to Sender (3 bytes)
 typedef struct __attribute__((packed)) {
     uint8_t motor_state;            // 0 = OFF, 1 = ON
     uint8_t auto_control_enabled;   // 0 = OFF, 1 = ON
+    uint8_t flags;                  // Bit 0: BLE Enable Request
 } secure_ack_payload_t;
 
 // The complete physical ACK packet structure (46 bytes)
