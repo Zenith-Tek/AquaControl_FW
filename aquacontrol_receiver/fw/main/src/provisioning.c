@@ -116,6 +116,7 @@ void prov_event_handler(void* arg, esp_event_base_t event_base,
                 break;
             case WIFI_EVENT_STA_DISCONNECTED:
                 ESP_LOGI(TAG_PROV, "Disconnected. Connecting to the AP again...");
+                xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_EVENT);
                 // led_mode = LED_ERROR;
                 if(trigger_reprovision==1) {
                     ESP_LOGI(TAG_PROV,"RESETTING PROVISIONING");
@@ -139,6 +140,8 @@ void prov_event_handler(void* arg, esp_event_base_t event_base,
         // led_mode = LED_ON;
         /* Signal main application to continue execution */
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_EVENT);
+        esp_wifi_set_ps(WIFI_PS_NONE);
+        ESP_LOGI(TAG_PROV, "Wi-Fi Power Save mode disabled (WIFI_PS_NONE) for low-latency Realtime updates.");
     } else if (event_base == PROTOCOMM_SECURITY_SESSION_EVENT) {
         switch (event_id) {
             case PROTOCOMM_SECURITY_SESSION_SETUP_OK:
