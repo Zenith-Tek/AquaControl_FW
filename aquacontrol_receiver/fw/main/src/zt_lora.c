@@ -195,6 +195,13 @@ void task_rx(void *pvParameters)
                             secure_ack_payload_t ack_payload;
                             ack_payload.motor_state = (uint8_t)motor_state;
                             ack_payload.auto_control_enabled = (uint8_t)auto_control;
+                            
+                            extern volatile bool g_sender_ble_enable_req;
+                            if (g_sender_ble_enable_req) {
+                                ack_payload.flags = 0x01;
+                            } else {
+                                ack_payload.flags = 0x00;
+                            }
 
                             esp_fill_random(ack_pkt.iv, 12);
 
@@ -212,8 +219,14 @@ void task_rx(void *pvParameters)
 
                             vTaskDelay(pdMS_TO_TICKS(10));
                             lora_send_packet((uint8_t *)&ack_pkt, sizeof(ack_pkt));
-                            ESP_LOGI(pcTaskGetName(NULL), "Sent encrypted ACK -> Motor: %d, AutoControl: %d",
-                                     ack_payload.motor_state, ack_payload.auto_control_enabled);
+                            ESP_LOGI(pcTaskGetName(NULL), "Sent encrypted ACK -> Motor: %d, AutoControl: %d, BLE: %d",
+                                     ack_payload.motor_state, ack_payload.auto_control_enabled, (ack_payload.flags & 0x01));
+
+                            if (ack_payload.flags & 0x01) {
+                                g_sender_ble_enable_req = false;
+                                void update_sender_ble_enable_in_supabase(bool enabled);
+                                update_sender_ble_enable_in_supabase(false);
+                            }
                         } else {
                             ESP_LOGE(pcTaskGetName(NULL), "GCM decryption/authentication failed! Packet tampered or wrong passcode.");
                         }
