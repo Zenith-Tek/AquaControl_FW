@@ -36,8 +36,7 @@ void crash_report_check_and_upload(void) {
         size_t off = 0;
         uint32_t depth = summary->exc_bt_info.depth;
         for (uint32_t i = 0; i < depth && off < sizeof(bt_str) - 12; i++) {
-            off += snprintf(bt_str + off, sizeof(bt_str) - off,
-                            "0x%08" PRIx32 " ", summary->exc_bt_info.bt[i]);
+            off += snprintf(bt_str + off, sizeof(bt_str) - off, "0x%08" PRIx32 " ", summary->exc_bt_info.bt[i]);
         }
     } else {
         ESP_LOGW(TAG_CR, "core dump present but summary unavailable");
@@ -50,8 +49,7 @@ void crash_report_check_and_upload(void) {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "p_device_id", mac_str);
     cJSON_AddStringToObject(root, "p_firmware_version", FIRMWARE_VERSION);
-    cJSON_AddStringToObject(root, "p_reboot_reason",
-                            G_REBOOT_REASON_STR ? G_REBOOT_REASON_STR : "Unknown");
+    cJSON_AddStringToObject(root, "p_reboot_reason", G_REBOOT_REASON_STR ? G_REBOOT_REASON_STR : "Unknown");
     if (crashed_task[0]) cJSON_AddStringToObject(root, "p_crashed_task", crashed_task);
     else                 cJSON_AddNullToObject(root, "p_crashed_task");
     if (pc_str[0]) cJSON_AddStringToObject(root, "p_fault_pc", pc_str);
@@ -62,10 +60,7 @@ void crash_report_check_and_upload(void) {
 
     char *body = cJSON_PrintUnformatted(root);
 
-    ESP_LOGW(TAG_CR, "reporting crash: task=%s pc=%s reason=%s",
-             crashed_task[0] ? crashed_task : "?",
-             pc_str[0] ? pc_str : "?",
-             G_REBOOT_REASON_STR ? G_REBOOT_REASON_STR : "Unknown");
+    ESP_LOGW(TAG_CR, "reporting crash: task=%s pc=%s reason=%s", crashed_task[0] ? crashed_task : "?", pc_str[0] ? pc_str : "?", G_REBOOT_REASON_STR ? G_REBOOT_REASON_STR : "Unknown"); 
 
     if (supabase_post_rpc("report_crash", body) == ESP_OK) {
         /* Reported successfully — erase so we don't re-report next boot. */
