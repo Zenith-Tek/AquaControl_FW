@@ -21,10 +21,17 @@ execute_process(
 )
 
 # Define the version information as macros
-set(APP_VERSION "v${GIT_TAG} - ${GIT_COMMIT_HASH}")
+if(GIT_TAG MATCHES "^v")
+    set(APP_VERSION "${GIT_TAG} - ${GIT_COMMIT_HASH}")
+else()
+    set(APP_VERSION "v${GIT_TAG} - ${GIT_COMMIT_HASH}")
+endif()
 
 # Pass the version to your application source code
 add_definitions(-DAPP_VERSION="${APP_VERSION}")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(lora)
+
+# Force CMake reconfiguration to detect main/idf_component.yml dependency
+
