@@ -42,7 +42,7 @@ void connect_wifi()
         
         do_provisioning();
         /* Wait for Wi-Fi connection */
-        xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, true, true, portMAX_DELAY);
+        xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, false, true, portMAX_DELAY);
     } else {
         ESP_LOGI(TAG_WIFI, "Already provisioned, starting Wi-Fi STA");
         /* We don't need the manager as device is already provisioned,
@@ -52,7 +52,7 @@ void connect_wifi()
         wifi_init_sta();
         /* Wait for Wi-Fi connection */
         ESP_LOGI(TAG_WIFI,"WAITING FOR WIFI_CONNECTED_EVENT");
-        xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, true, true, WIFI_CONNECTED_EVENT_TIMEOUT);
+        xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, false, true, WIFI_CONNECTED_EVENT_TIMEOUT);
     }
     esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
     int netif_retries = 50; // 5 seconds max wait for netif to initialize
@@ -63,7 +63,7 @@ void connect_wifi()
 
     if (netif != NULL && esp_netif_is_netif_up(netif)) {
         ESP_LOGI(TAG_WIFI, "Waiting up to 10 seconds for IP address from DHCP...");
-        EventBits_t bits = xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, true, true, 10000 / portTICK_PERIOD_MS);
+        EventBits_t bits = xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_EVENT, false, true, 10000 / portTICK_PERIOD_MS);
         if (bits & WIFI_CONNECTED_EVENT) {
             ESP_LOGI(TAG_WIFI, "IP address acquired! Proceeding with online application setup.");
         } else {
